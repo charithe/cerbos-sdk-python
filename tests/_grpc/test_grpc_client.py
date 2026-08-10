@@ -1,7 +1,6 @@
 # Copyright 2021-2025 Zenauth Ltd.
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import List
 
 import grpc
 import pytest
@@ -20,6 +19,8 @@ from cerbos.sdk.grpc.client import (
 from cerbos.sdk.grpc.utils import get_resource, is_allowed
 
 pytestmark = pytest.mark.anyio
+
+test_token = "eyJhbGciOiJFUzM4NCIsImtpZCI6IjE5TGZaYXRFZGc4M1lOYzVyMjNndU1KcXJuND0iLCJ0eXAiOiJKV1QifQ.eyJhdWQiOlsiY2VyYm9zLWp3dC10ZXN0cyJdLCJjdXN0b21BcnJheSI6WyJBIiwiQiIsIkMiXSwiY3VzdG9tSW50Ijo0MiwiY3VzdG9tTWFwIjp7IkEiOiJBQSIsIkIiOiJCQiIsIkMiOiJDQyJ9LCJjdXN0b21TdHJpbmciOiJmb29iYXIiLCJleHAiOjE5NTAyNzc5MjYsImlzcyI6ImNlcmJvcy10ZXN0LXN1aXRlIn0._nCHIsuFI3wczeuUv_xjSwaVnIQUdYA9sGf_jVsrsDWloLs3iPWDaA1bXpuIUJVsi8-G6qqdrPI0cOBxEocg1NCm8fyD9T_3hsZV0fYWon_Je6Kl93a3JIW3S6kbvjsL"
 
 
 class TestCerbosClient:
@@ -46,7 +47,7 @@ class TestCerbosClient:
         self,
         cerbos_grpc_client: CerbosClient,
         principal_john: engine_pb2.Principal,
-        resource_list: List[request_pb2.CheckResourcesRequest.ResourceEntry],
+        resource_list: list[request_pb2.CheckResourcesRequest.ResourceEntry],
     ):
         have = cerbos_grpc_client.check_resources(principal_john, resource_list)
         _assert_check_resources(have)
@@ -64,7 +65,7 @@ class TestCerbosClient:
         self,
         cerbos_grpc_client: CerbosClient,
         principal_invalid_john: engine_pb2.Principal,
-        resource_list: List[request_pb2.CheckResourcesRequest.ResourceEntry],
+        resource_list: list[request_pb2.CheckResourcesRequest.ResourceEntry],
     ):
         have = cerbos_grpc_client.check_resources(principal_invalid_john, resource_list)
         _assert_check_resources_validation(have)
@@ -106,7 +107,7 @@ class TestCerbosClient:
         self,
         cerbos_grpc_client: CerbosClient,
         principal_john: engine_pb2.Principal,
-        resource_list: List[request_pb2.CheckResourcesRequest.ResourceEntry],
+        resource_list: list[request_pb2.CheckResourcesRequest.ResourceEntry],
     ):
         have = cerbos_grpc_client.check_resources(principal_john, resource_list)
         _assert_check_resources_with_output(have)
@@ -135,6 +136,34 @@ class TestCerbosClient:
         )
         assert have
 
+    def test_check_resources_with_aux_data(
+        self,
+        cerbos_grpc_client: CerbosClient,
+        principal_john: engine_pb2.Principal,
+        resource_john_leave_req: engine_pb2.Resource,
+    ):
+        resources = [
+            request_pb2.CheckResourcesRequest.ResourceEntry(
+                resource=resource_john_leave_req,
+                actions={"frobnicate"},
+            )
+        ]
+        aux_data = request_pb2.AuxData(
+            jwts={
+                "token_a": request_pb2.AuxData.JWT(token=test_token),
+                "token_b": request_pb2.AuxData.JWT(token=test_token),
+            }
+        )
+        have = cerbos_grpc_client.check_resources(
+            principal_john, resources, aux_data=aux_data
+        )
+
+        xx125 = get_resource(
+            have, "XX125", predicate=lambda r: r.policy_version == "20210210"
+        )
+        assert xx125 is not None
+        assert is_allowed(xx125, "frobnicate")
+
 
 class TestPrincipalContext:
     def test_is_allowed(
@@ -148,7 +177,7 @@ class TestPrincipalContext:
     def test_check_resources(
         self,
         principal_ctx: PrincipalContext,
-        resource_list: List[request_pb2.CheckResourcesRequest.ResourceEntry],
+        resource_list: list[request_pb2.CheckResourcesRequest.ResourceEntry],
     ):
         have = principal_ctx.check_resources(resource_list)
         _assert_check_resources(have)
@@ -157,7 +186,7 @@ class TestPrincipalContext:
         self,
         cerbos_grpc_client: CerbosClient,
         principal_donald: engine_pb2.Principal,
-        resource_list: List[request_pb2.CheckResourcesRequest.ResourceEntry],
+        resource_list: list[request_pb2.CheckResourcesRequest.ResourceEntry],
     ):
         principal_ctx_override = cerbos_grpc_client.with_principal(principal_donald)
         have = principal_ctx_override.check_resources(resource_list)
@@ -198,7 +227,7 @@ class TestAsyncCerbosClient:
         self,
         cerbos_async_grpc_client: AsyncCerbosClient,
         principal_john: engine_pb2.Principal,
-        resource_list: List[request_pb2.CheckResourcesRequest.ResourceEntry],
+        resource_list: list[request_pb2.CheckResourcesRequest.ResourceEntry],
     ):
         have = await cerbos_async_grpc_client.check_resources(
             principal_john, resource_list
@@ -242,12 +271,40 @@ class TestAsyncCerbosClient:
         self,
         cerbos_async_grpc_client: AsyncCerbosClient,
         principal_john: engine_pb2.Principal,
-        resource_list: List[request_pb2.CheckResourcesRequest.ResourceEntry],
+        resource_list: list[request_pb2.CheckResourcesRequest.ResourceEntry],
     ):
         have = await cerbos_async_grpc_client.check_resources(
             principal_john, resource_list
         )
         _assert_check_resources_with_output(have)
+
+    async def test_check_resources_with_aux_data(
+        self,
+        cerbos_async_grpc_client: AsyncCerbosClient,
+        principal_john: engine_pb2.Principal,
+        resource_john_leave_req: engine_pb2.Resource,
+    ):
+        resources = [
+            request_pb2.CheckResourcesRequest.ResourceEntry(
+                resource=resource_john_leave_req,
+                actions={"frobnicate"},
+            )
+        ]
+        aux_data = request_pb2.AuxData(
+            jwts={
+                "token_a": request_pb2.AuxData.JWT(token=test_token),
+                "token_b": request_pb2.AuxData.JWT(token=test_token),
+            }
+        )
+        have = await cerbos_async_grpc_client.check_resources(
+            principal_john, resources, aux_data=aux_data
+        )
+
+        xx125 = get_resource(
+            have, "XX125", predicate=lambda r: r.policy_version == "20210210"
+        )
+        assert xx125 is not None
+        assert is_allowed(xx125, "frobnicate")
 
 
 class TestAsyncAsyncPrincipalContext:
@@ -264,7 +321,7 @@ class TestAsyncAsyncPrincipalContext:
     async def test_check_resources(
         self,
         async_principal_ctx: AsyncPrincipalContext,
-        resource_list: List[request_pb2.CheckResourcesRequest.ResourceEntry],
+        resource_list: list[request_pb2.CheckResourcesRequest.ResourceEntry],
     ):
         have = await async_principal_ctx.check_resources(resource_list)
         _assert_check_resources(have)
@@ -273,7 +330,7 @@ class TestAsyncAsyncPrincipalContext:
         self,
         cerbos_async_grpc_client: AsyncCerbosClient,
         principal_donald: engine_pb2.Principal,
-        resource_list: List[request_pb2.CheckResourcesRequest.ResourceEntry],
+        resource_list: list[request_pb2.CheckResourcesRequest.ResourceEntry],
     ):
         async_principal_ctx_override = cerbos_async_grpc_client.with_principal(
             principal_donald
@@ -374,6 +431,7 @@ def _assert_check_resources_with_output(have: response_pb2.CheckResourcesRespons
                 "nested_str": "foo",
             },
         },
+        "action": "view:public",
     }
 
 
@@ -401,6 +459,7 @@ def _assert_check_resources_principal_override_with_output(
                 "nested_str": "foo",
             },
         },
+        "action": "view:public",
     }
 
 

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 import grpc
 
@@ -10,7 +10,7 @@ from cerbos.sdk._sync._hub._auth import _AuthClient
 from cerbos.sdk._sync._hub._interceptors import _AuthInterceptor
 from cerbos.sdk.hub.model import Credentials
 
-_METHOD_CONFIG: Dict[str, Any] = {
+_METHOD_CONFIG: dict[str, Any] = {
     "methodConfig": [
         {
             "name": [{}],
@@ -50,9 +50,9 @@ class _CerbosHubClientBase:
 
     def __init__(
         self,
-        credentials: Optional[Credentials] = None,
-        api_endpoint: Optional[str] = None,
-        timeout_secs: Optional[float] = None,
+        credentials: Credentials | None = None,
+        api_endpoint: str | None = None,
+        timeout_secs: float | None = None,
     ):
         target = os.getenv("CERBOS_HUB_API_ENDPOINT", "dns:///api.cerbos.cloud")
         if api_endpoint:
@@ -66,8 +66,7 @@ class _CerbosHubClientBase:
             self._timeout_secs = timeout_secs
         channel = grpc.secure_channel(
             target, credentials=grpc.ssl_channel_credentials(), options=options
-        )  # noqa: F821
-        # noqa: F821
+        )
         auth_interceptor = _AuthInterceptor(
             _AuthClient(channel, self._timeout_secs, credentials)
         )
